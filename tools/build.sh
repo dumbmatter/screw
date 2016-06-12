@@ -1,5 +1,4 @@
-rm -rf build
-mkdir build
+rm -rf build/*
 cp src/index.html build
 
 cp -r src/css build/css

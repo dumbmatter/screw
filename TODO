@@ -1,10 +1,7 @@
-slide for pitch
-- http://stackoverflow.com/a/11593025/786644
-- http://stackoverflow.com/a/12610497/786644
-- https://webaudio.github.io/web-audio-api/ ctrl+f for "pitch"
-- createBiquadFilter
-- http://html5doctor.com/html5-audio-the-state-of-play/
-
 normal controls (stop/pause/seek)
+- pause: node.disconnect, see usage already, probably move that to pause function
+- stop: (same as for selecting new file) need to reevaluate, since start is not used stop can't be
 
 queue
+
+export mp3
