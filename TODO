@@ -1,6 +1,4 @@
-normal controls (stop/pause/seek)
-- pause: node.disconnect, see usage already, probably move that to pause function
-- stop: (same as for selecting new file) need to reevaluate, since start is not used stop can't be
+emitter needed?
 
 queue
 

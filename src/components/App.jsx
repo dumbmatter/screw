@@ -13,11 +13,14 @@ class App extends React.Component {
 
         this.state = {
             action: 'stop',
+            duration: undefined,
             error: undefined,
             filename: undefined,
             pitch: 0.8,
-            tempo: 0.8,
+            simpleFilter: undefined,
             status: [],
+            t: 0,
+            tempo: 0.8,
         };
 
         this.audioContext = new AudioContext();
@@ -46,6 +49,7 @@ class App extends React.Component {
 
         this.source = {
             extract: (target, numFrames, position) => {
+                this.setState({t: position / this.audioContext.sampleRate});
                 const l = buffer.getChannelData(0);
                 const r = buffer.getChannelData(1);
                 for (let i = 0; i < numFrames; i++) {
@@ -55,13 +59,13 @@ class App extends React.Component {
                 return Math.min(numFrames, l.length - position);
             },
         };
-        this.f = new SimpleFilter(this.source, this.soundTouch);
+        this.simpleFilter = new SimpleFilter(this.source, this.soundTouch);
         this.scriptProcessor.onaudioprocess = e => {
             const l = e.outputBuffer.getChannelData(0);
             const r = e.outputBuffer.getChannelData(1);
-            const framesExtracted = this.f.extract(samples, BUFFER_SIZE);
+            const framesExtracted = this.simpleFilter.extract(samples, BUFFER_SIZE);
             if (framesExtracted === 0) {
-                this.pause();
+                this.stop();
             }
             for (let i = 0; i < framesExtracted; i++) {
                 l[i] = samples[i * 2];
@@ -69,36 +73,40 @@ class App extends React.Component {
             }
         };
 
+        this.setState({duration: buffer.duration});
         this.play();
     }
 
     play() {
         if (this.state.action !== 'play') {
             this.scriptProcessor.connect(this.audioContext.destination);
-            this.emitter.emit('state', {action: 'play'});
+            this.setState({action: 'play'});
         }
     }
 
     pause() {
         if (this.state.action === 'play') {
             this.scriptProcessor.disconnect(this.audioContext.destination);
-            this.emitter.emit('state', {action: 'pause'});
+            this.setState({action: 'pause'});
         }
     }
 
     stop() {
         this.pause();
-        this.f.sourcePosition = 0;
-        this.emitter.emit('state', {action: 'stop'});
+        if (this.simpleFilter !== undefined) {
+            this.simpleFilter.sourcePosition = 0;
+        }
+        this.setState({action: 'stop', t: 0});
     }
 
     handleFileChange(e) {
         if (e.target.files.length > 0) {
+            this.stop();
+
             this.emitter.emit('status', 'Reading file...');
             this.emitter.emit('state', {
                 error: undefined,
                 filename: undefined,
-                rows: [],
             });
 
             // http://stackoverflow.com/q/4851595/786644
@@ -136,10 +144,28 @@ class App extends React.Component {
         this.setState({pitch});
     }
 
+    handleSeek(e) {
+        if (this.simpleFilter) {
+            const percent = e.target.value;
+            this.simpleFilter.sourcePosition = Math.round(
+                percent / 100 * this.state.duration * this.audioContext.sampleRate
+            );
+            this.play();
+        }
+    }
+
     handleTempoChange(e) {
         const tempo = e.target.value;
         this.soundTouch.tempo = tempo;
         this.setState({tempo});
+    }
+
+    percentDone() {
+        if (!this.state.duration) {
+            return 0;
+        }
+
+        return this.state.t / this.state.duration * 100;
     }
 
     render() {
@@ -166,7 +192,7 @@ class App extends React.Component {
                 <ErrorAlert error={this.state.error} />
 
                 <div className="row">
-                    <div className="col-xs-5 col-sm-3 col-lg-2" style={{paddingTop: '7px'}}>
+                    <div className="col-xs-5 col-sm-3 col-lg-2" style={{paddingTop: '6px'}}>
                         <TrackControls
                             action={this.state.action}
                             error={this.state.error}
@@ -180,11 +206,11 @@ class App extends React.Component {
                         <input
                             className="form-control"
                             type="range"
-                            min="0.05"
-                            max="2"
+                            min="0"
+                            max="100"
                             step="0.05"
-                            defaultValue={this.state.pitch}
-                            onChange={e => this.handlePitchChange(e)}
+                            value={this.percentDone()}
+                            onChange={e => this.handleSeek(e)}
                         />
                     </div>
                 </div>

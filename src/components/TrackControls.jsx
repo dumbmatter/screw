@@ -2,7 +2,6 @@ const React = require('react');
 
 const TrackControls = props => {
     const disabled = props.error !== undefined || props.filename === undefined;
-console.log(disabled, props);
 
     let playOrPause;
     if (props.action === 'play') {
