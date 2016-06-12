@@ -240,7 +240,7 @@ FifoSampleBuffer.prototype = {
     },
 
     clear: function() {
-        this.receive(frameCount);
+        this.receive(this._frameCount);
         this.rewind();
     },
 
@@ -1003,8 +1003,8 @@ function SoundTouch() {
 
 extend(SoundTouch.prototype, {
     clear: function () {
-        rateTransposer.clear();
-        tdStretch.clear();
+        this.rateTransposer.clear();
+        this.tdStretch.clear();
     },
 
     clone: function () {
@@ -1108,5 +1108,6 @@ extend(SoundTouch.prototype, {
     }
 });
 
-// This is the only part that was added for screw
+// This is the only part that was added for screw (plus fixing a couple typos where `this` was
+// erroneously not used)
 module.exports = {SimpleFilter, SoundTouch};
