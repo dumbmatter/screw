@@ -1,11 +1,9 @@
 const EventEmitter = require('events').EventEmitter;
 const React = require('react');
-const {SimpleFilter, SoundTouch} = require('../lib/soundtouch');
 const ErrorAlert = require('./ErrorAlert.jsx');
 const FilenameLabel = require('./FilenameLabel.jsx');
 const TrackControls = require('./TrackControls.jsx');
-
-const BUFFER_SIZE = 4096;
+const AudioPlayer = require('../lib/AudioPlayer');
 
 class App extends React.Component {
     constructor(props) {
@@ -23,25 +21,6 @@ class App extends React.Component {
             tempo: 0.8,
         };
 
-        this.audioContext = new AudioContext();
-        this.scriptProcessor = this.audioContext.createScriptProcessor(BUFFER_SIZE, 2, 2);
-        this.scriptProcessor.onaudioprocess = e => {
-            const l = e.outputBuffer.getChannelData(0);
-            const r = e.outputBuffer.getChannelData(1);
-            const framesExtracted = this.simpleFilter.extract(this.samples, BUFFER_SIZE);
-            if (framesExtracted === 0) {
-                this.stop();
-            }
-            for (let i = 0; i < framesExtracted; i++) {
-                l[i] = this.samples[i * 2];
-                r[i] = this.samples[i * 2 + 1];
-            }
-        };
-
-        this.soundTouch = new SoundTouch();
-        this.soundTouch.pitch = this.state.pitch;
-        this.soundTouch.tempo = this.state.tempo;
-
         this.emitter = new EventEmitter();
         this.emitter.on('state', state => this.setState(state));
         this.emitter.on('status', status => {
@@ -51,50 +30,32 @@ class App extends React.Component {
                 this.setState({status: this.state.status.concat(status)});
             }
         });
-    }
+        this.emitter.on('stop', () => this.stop());
 
-    setBuffer(buffer) {
-        const bufferSource = this.audioContext.createBufferSource();
-        bufferSource.buffer = buffer;
-
-        this.samples = new Float32Array(BUFFER_SIZE * 2);
-        this.source = {
-            extract: (target, numFrames, position) => {
-                this.setState({t: position / this.audioContext.sampleRate});
-                const l = buffer.getChannelData(0);
-                const r = buffer.getChannelData(1);
-                for (let i = 0; i < numFrames; i++) {
-                    target[i * 2] = l[i + position];
-                    target[i * 2 + 1] = r[i + position];
-                }
-                return Math.min(numFrames, l.length - position);
-            },
-        };
-        this.simpleFilter = new SimpleFilter(this.source, this.soundTouch);
-
-        this.setState({duration: buffer.duration});
-        this.play();
+        this.audioPlayer = new AudioPlayer({
+            emitter: this.emitter,
+            pitch: this.state.pitch,
+            tempo: this.state.tempo,
+        });
     }
 
     play() {
         if (this.state.action !== 'play') {
-            this.scriptProcessor.connect(this.audioContext.destination);
+            this.audioPlayer.play();
             this.setState({action: 'play'});
         }
     }
 
     pause() {
         if (this.state.action === 'play') {
-            this.scriptProcessor.disconnect(this.audioContext.destination);
+            this.audioPlayer.pause();
             this.setState({action: 'pause'});
         }
     }
 
     stop() {
         this.pause();
-        if (this.simpleFilter !== undefined) {
-            this.simpleFilter.sourcePosition = 0;
-        }
+        this.audioPlayer.seekPercent(0);
         this.setState({action: 'stop', t: 0});
     }
 
@@ -121,7 +82,7 @@ class App extends React.Component {
 
                 let buffer;
                 try {
-                    buffer = await this.audioContext.decodeAudioData(event.target.result);
+                    buffer = await this.audioPlayer.decodeAudioData(event.target.result);
                 } catch (err) {
                     this.emitter.emit('state', {
                         error: {
@@ -132,31 +93,28 @@ class App extends React.Component {
                     return;
                 }
 
-                this.setBuffer(buffer);
+                this.audioPlayer.setBuffer(buffer);
+                this.play();
             };
         }
     }
 
     handlePitchChange(e) {
         const pitch = e.target.value;
-        this.soundTouch.pitch = pitch;
+        this.audioPlayer.pitch = pitch;
         this.setState({pitch});
-    }
-
-    handleSeek(e) {
-        if (this.simpleFilter) {
-            const percent = e.target.value;
-            this.simpleFilter.sourcePosition = Math.round(
-                percent / 100 * this.state.duration * this.audioContext.sampleRate
-            );
-            this.play();
-        }
     }
 
     handleTempoChange(e) {
         const tempo = e.target.value;
-        this.soundTouch.tempo = tempo;
+        this.audioPlayer.tempo = tempo;
         this.setState({tempo});
+    }
+
+    handleSeek(e) {
+        const percent = parseFloat(e.target.value);
+        this.audioPlayer.seekPercent(percent);
+        this.play();
     }
 
     percentDone() {
