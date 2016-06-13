@@ -25,6 +25,18 @@ class App extends React.Component {
 
         this.audioContext = new AudioContext();
         this.scriptProcessor = this.audioContext.createScriptProcessor(BUFFER_SIZE, 2, 2);
+        this.scriptProcessor.onaudioprocess = e => {
+            const l = e.outputBuffer.getChannelData(0);
+            const r = e.outputBuffer.getChannelData(1);
+            const framesExtracted = this.simpleFilter.extract(this.samples, BUFFER_SIZE);
+            if (framesExtracted === 0) {
+                this.stop();
+            }
+            for (let i = 0; i < framesExtracted; i++) {
+                l[i] = this.samples[i * 2];
+                r[i] = this.samples[i * 2 + 1];
+            }
+        };
 
         this.soundTouch = new SoundTouch();
         this.soundTouch.pitch = this.state.pitch;
@@ -45,8 +57,7 @@ class App extends React.Component {
         const bufferSource = this.audioContext.createBufferSource();
         bufferSource.buffer = buffer;
 
-        const samples = new Float32Array(BUFFER_SIZE * 2);
-
+        this.samples = new Float32Array(BUFFER_SIZE * 2);
         this.source = {
             extract: (target, numFrames, position) => {
                 this.setState({t: position / this.audioContext.sampleRate});
@@ -60,18 +71,6 @@ class App extends React.Component {
             },
         };
         this.simpleFilter = new SimpleFilter(this.source, this.soundTouch);
-        this.scriptProcessor.onaudioprocess = e => {
-            const l = e.outputBuffer.getChannelData(0);
-            const r = e.outputBuffer.getChannelData(1);
-            const framesExtracted = this.simpleFilter.extract(samples, BUFFER_SIZE);
-            if (framesExtracted === 0) {
-                this.stop();
-            }
-            for (let i = 0; i < framesExtracted; i++) {
-                l[i] = samples[i * 2];
-                r[i] = samples[i * 2 + 1];
-            }
-        };
 
         this.setState({duration: buffer.duration});
         this.play();
