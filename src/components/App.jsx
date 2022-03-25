@@ -39,7 +39,9 @@ class App extends React.Component {
         });
     }
 
-    play() {
+    async play() {
+        // https://developer.chrome.com/blog/autoplay/#web-audio
+        await this.audioPlayer.context.resume();
         if (this.state.action !== 'play') {
             this.audioPlayer.play();
             this.setState({action: 'play'});
